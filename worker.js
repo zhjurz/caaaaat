@@ -45,93 +45,45 @@ class CCC {
   }
 
   toUTF8Array(str) {
-    let utf8 = [];
-    for (let i = 0; i < str.length; i++) {
-      let charcode = str.charCodeAt(i);
-      if (charcode < 0x80) utf8.push(charcode);
-      else if (charcode < 0x800) {
-        utf8.push(0xc0 | (charcode >> 6), 0x80 | (charcode & 0x3f));
-      } else if (charcode < 0xd800 || charcode >= 0xe000) {
-        utf8.push(
-          0xe0 | (charcode >> 12),
-          0x80 | ((charcode >> 6) & 0x3f),
-          0x80 | (charcode & 0x3f),
-        );
-      } else {
-        i++;
-        charcode = ((charcode & 0x3ff) << 10) | (str.charCodeAt(i) & 0x3ff);
-        utf8.push(
-          0xf0 | (charcode >> 18),
-          0x80 | ((charcode >> 12) & 0x3f),
-          0x80 | ((charcode >> 6) & 0x3f),
-          0x80 | (charcode & 0x3f),
-        );
-      }
-    }
-    return utf8;
+    return new TextEncoder().encode(str);
   }
 
   Utf8ArrayToStr(array) {
-    let out = "",
-      i = 0,
-      len = array.length,
-      c,
-      char2,
-      char3;
-
-    while (i < len) {
-      c = array[i++];
-      switch (c >> 4) {
-        case 0:
-        case 1:
-        case 2:
-        case 3:
-        case 4:
-        case 5:
-        case 6:
-        case 7:
-          out += String.fromCharCode(c);
-          break;
-        case 12:
-        case 13:
-          char2 = array[i++];
-          out += String.fromCharCode(((c & 0x1f) << 6) | (char2 & 0x3f));
-          break;
-        case 14:
-          char2 = array[i++];
-          char3 = array[i++];
-          out += String.fromCharCode(
-            ((c & 0x0f) << 12) | ((char2 & 0x3f) << 6) | (char3 & 0x3f),
-          );
-          break;
-      }
-    }
-    return out;
+    return new TextDecoder().decode(new Uint8Array(array));
   }
 }
 
-// ⭐ 核心入口
+// ⭐ Worker 入口（重点优化版）
 export async function onRequest(context) {
   const { request } = context;
   const url = new URL(request.url);
-  const path = url.pathname.slice(1);
 
-  // ✅ 1. 首页放行（否则你主页打不开）
+  // 🔥 必须 decode（关键修复点）
+  let path = decodeURIComponent(url.pathname.slice(1));
+
+  // ✅ 首页放行
   if (!path) {
     return context.next();
   }
 
-  // ✅ 2. 尝试解析
-  let redirectUrl;
-  try {
-    redirectUrl = new CCC().decodeUrl(decodeURIComponent(path));
-  } catch (e) {}
+  let redirectUrl = null;
 
-  // ❌ 解析失败 → 返回首页（更友好）
+  try {
+    redirectUrl = new CCC().decodeUrl(path);
+  } catch (e) {
+    console.log("decode error:", e);
+  }
+
+  // ❌ 解码失败 → 返回首页（避免 404）
   if (!redirectUrl) {
     return Response.redirect(url.origin, 302);
   }
 
-  // ✅ 3. 正常跳转
+  // 🔥 防止非法 URL（重要！）
+  if (!redirectUrl.startsWith("http")) {
+    redirectUrl = "https://" + redirectUrl;
+  }
+
+  // ✅ 跳转
   return Response.redirect(redirectUrl, 302);
 }
