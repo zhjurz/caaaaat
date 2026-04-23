@@ -30,7 +30,7 @@ class CCC {
   }
 }
 
-// 🔥 防炸 decode
+// 防止 URL 编码问题
 function safeDecode(path) {
   try {
     let once = decodeURIComponent(path);
@@ -45,13 +45,13 @@ function safeDecode(path) {
 }
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     try {
       const url = new URL(request.url);
       const path = safeDecode(url.pathname.slice(1));
       const ccc = new CCC();
 
-      // ✅ 1. 静态资源（关键）
+      // ✅ 静态资源
       if (
         url.pathname === "/" ||
         url.pathname.startsWith("/index") ||
@@ -63,21 +63,20 @@ export default {
         return env.ASSETS.fetch(request);
       }
 
-      // ✅ 2. 解码跳转
-      let target = ccc.decodeUrl(path);
+      // ✅ 解码跳转
+      const target = ccc.decodeUrl(path);
 
       if (!target) {
-        // ❗ fallback 到首页
         return env.ASSETS.fetch(new Request(url.origin));
       }
 
-      if (!/^https?:\/\//i.test(target)) {
-        target = "https://" + target;
+      let finalUrl = target;
+      if (!/^https?:\/\//i.test(finalUrl)) {
+        finalUrl = "https://" + finalUrl;
       }
 
-      return Response.redirect(target, 302);
-
-    } catch (e) {
+      return Response.redirect(finalUrl, 302);
+    } catch {
       return new Response("Internal Error", { status: 500 });
     }
   },

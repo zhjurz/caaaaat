@@ -1,70 +1,41 @@
 const input = document.getElementById("input-url");
+const btn = document.getElementById("btn");
+const result = document.getElementById("result");
 const output = document.getElementById("output-url");
-const cccBtn = document.getElementById("ccc-button");
-const copyBtn = document.getElementById("copy-button");
+const copyBtn = document.getElementById("copy");
 
-input.addEventListener("keydown", (e) => (e.code == "Enter" ? cccat() : null));
+btn.onclick = generate;
 
-let cccBtnInt;
-cccBtn.addEventListener("mouseenter", () => {
-  cccBtnInt = setInterval(() => {
-    cccBtn.innerText =
-      cccBtn.innerText == "cccccat！" ? "CcccCat！" : "cccccat！";
-  }, 300);
-});
-cccBtn.addEventListener("mouseleave", () => {
-  clearInterval(cccBtnInt);
-  cccBtn.innerText = "cccccat！";
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") generate();
 });
 
-function cccat() {
-  if (window.inBlinking) return;
+function generate() {
+  let val = input.value.trim();
+  if (!val) return;
 
-  let inputVal = input.value.trim();
-
-  // 自动补 http
-  if (!/^https?:\/\//i.test(inputVal)) {
-    inputVal = "https://" + inputVal;
+  if (!/^https?:\/\//i.test(val)) {
+    val = "https://" + val;
   }
 
   try {
-    new URL(inputVal);
-  } catch (e) {
-    // 原逻辑不变
-    window.inBlinking = true;
-    input.style.opacity = 1;
-    input.disabled = true;
-    let oldValue = input.value;
-    input.value = "Invalid URL! Meowwwwww D:";
-    let times = 0;
-    let i = setInterval(() => {
-      input.style.opacity = parseFloat(input.style.opacity) == 1 ? 0.2 : 1;
-      if (++times == 6) {
-        clearInterval(i);
-        input.value = oldValue;
-        input.disabled = false;
-        input.focus();
-        window.inBlinking = false;
-      }
-    }, 150);
+    new URL(val);
+  } catch {
+    alert("Invalid URL");
     return;
   }
 
-  const domain = location.host;
-  let url = new CCC().encodeUrl(inputVal);
+  const ccc = new CCC();
+  const encoded = ccc.encodeUrl(val);
 
-  url = `${location.protocol}//${domain}/${url}`;
+  const finalUrl = location.origin + "/" + encoded;
 
-  document.getElementById("output-div").style.display = "block";
-  output.innerHTML = url;
-  output.setAttribute("href", url);
+  output.textContent = finalUrl;
+  output.href = finalUrl;
 
-  input.value = "";
+  result.classList.remove("hidden");
 }
 
-function copy() {
-  navigator.clipboard.writeText(output.innerHTML).then(() => {
-    copyBtn.parentNode.setAttribute("data-showme", "");
-    setTimeout(() => copyBtn.parentNode.removeAttribute("data-showme"), 1200);
-  });
-}
+copyBtn.onclick = () => {
+  navigator.clipboard.writeText(output.textContent);
+};
