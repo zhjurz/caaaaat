@@ -53,37 +53,41 @@ class CCC {
   }
 }
 
-// ⭐ Worker 入口（重点优化版）
-export async function onRequest(context) {
-  const { request } = context;
-  const url = new URL(request.url);
+// ⭐⭐⭐ Worker 标准入口（关键改造）
+export default {
+  async fetch(request) {
+    const url = new URL(request.url);
 
-  // 🔥 必须 decode（关键修复点）
-  let path = decodeURIComponent(url.pathname.slice(1));
+    // 🔥 decode URL（必须）
+    let path = decodeURIComponent(url.pathname.slice(1));
 
-  // ✅ 首页放行
-  if (!path) {
-    return context.next();
+    // ✅ 1. 首页
+    if (!path) {
+      return new Response(
+        `<h1>CCC Worker Running ✅</h1>`,
+        { headers: { "content-type": "text/html" } }
+      );
+    }
+
+    let redirectUrl = null;
+
+    try {
+      redirectUrl = new CCC().decodeUrl(path);
+    } catch (e) {
+      console.log("decode error:", e);
+    }
+
+    // ❌ 解码失败
+    if (!redirectUrl) {
+      return new Response("Invalid CCC URL", { status: 404 });
+    }
+
+    // 🔥 自动补协议
+    if (!redirectUrl.startsWith("http")) {
+      redirectUrl = "https://" + redirectUrl;
+    }
+
+    // ✅ 跳转
+    return Response.redirect(redirectUrl, 302);
   }
-
-  let redirectUrl = null;
-
-  try {
-    redirectUrl = new CCC().decodeUrl(path);
-  } catch (e) {
-    console.log("decode error:", e);
-  }
-
-  // ❌ 解码失败 → 返回首页（避免 404）
-  if (!redirectUrl) {
-    return Response.redirect(url.origin, 302);
-  }
-
-  // 🔥 防止非法 URL（重要！）
-  if (!redirectUrl.startsWith("http")) {
-    redirectUrl = "https://" + redirectUrl;
-  }
-
-  // ✅ 跳转
-  return Response.redirect(redirectUrl, 302);
-}
+};
