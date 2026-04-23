@@ -1405,24 +1405,25 @@ function generate() {
   let val = input.value.trim();
   if (!val) return;
 
-  // ✅ 自动补 https
   if (!/^https?:\/\//i.test(val)) {
     val = "https://" + val;
   }
 
-  // ✅ URL结构校验
   try {
     new URL(val);
   } catch {
+    setAngry(); // ✅ 触发颜文字
     alert("😾 这不是一个合法的网址！");
     return;
   }
 
-  // 🔥 核心：域名后缀校验
   if (!isValidDomain(val)) {
+    setAngry(); // ✅ 触发颜文字
     alert("🙀 找不到这个域名后缀！");
     return;
   }
+
+  resetBtn(); // ✅ 成功时恢复正常
 
   const ccc = new CCC();
   const encoded = ccc.encodeUrl(val);
