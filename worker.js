@@ -6,95 +6,126 @@ class CCC {
     с: "2",
     ϲ: "3",
   };
-  ver = { cccc: true };
-  currVer = "cccc";
-
-  removeAndCheckVersion(ccc) {
-    if (!ccc || ccc.length < 4) return null;
-    return this.ver[ccc.substring(0, 4)] ? ccc.substring(4) : null;
-  }
-
-  addVersion(ccc) {
-    return this.currVer + ccc;
-  }
+  ver = "cccc";
 
   encodeUrl(url) {
     try {
-      let unversioned = this.toUTF8Array(url)
-        .map((n) => n.toString(4).padStart(4, "0"))
-        .join("")
-        .split("")
-        .map((x) => this.enc[parseInt(x)])
+      let bytes = new TextEncoder().encode(url);
+      let b4 = Array.from(bytes)
+        .map(n => n.toString(4).padStart(4, "0"))
         .join("");
-      return this.addVersion(unversioned);
-    } catch (e) {
+
+      let out = "";
+      for (let ch of b4) {
+        out += this.enc[parseInt(ch)];
+      }
+
+      return this.ver + out;
+    } catch {
       return null;
     }
   }
 
-  decodeUrl(ccc) {
+  decodeUrl(str) {
     try {
-      ccc = this.removeAndCheckVersion(ccc);
-      if (!ccc) return null;
+      if (!str.startsWith(this.ver)) return null;
+      str = str.slice(4);
 
-      let b4 = [];
-
-      for (let ch of ccc) {
-        if (!(ch in this.dec)) return null; // 防非法字符
-        b4.push(this.dec[ch]);
+      let b4 = "";
+      for (let ch of str) {
+        if (!(ch in this.dec)) return null;
+        b4 += this.dec[ch];
       }
 
-      let b4str = b4.join("");
+      if (b4.length % 4 !== 0) return null;
 
-      if (b4str.length % 4 !== 0) return null;
-
-      let utf8arr = [];
-      for (let i = 0; i < b4str.length; i += 4) {
-        let num = parseInt(b4str.substring(i, i + 4), 4);
+      let bytes = [];
+      for (let i = 0; i < b4.length; i += 4) {
+        let num = parseInt(b4.slice(i, i + 4), 4);
         if (isNaN(num)) return null;
-        utf8arr.push(num);
+        bytes.push(num);
       }
 
-      return new TextDecoder().decode(new Uint8Array(utf8arr));
-    } catch (e) {
+      return new TextDecoder().decode(new Uint8Array(bytes));
+    } catch {
       return null;
     }
-  }
-
-  toUTF8Array(str) {
-    return new TextEncoder().encode(str);
   }
 }
 
-// 简单首页
-const INDEX_HTML = `
+// 🔥 前端页面（和 Worker 共用同一套 CCC）
+const HTML = `
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <title>CCC Encoder</title>
+<style>
+body{font-family:sans-serif;text-align:center;margin-top:80px}
+input{width:320px;padding:8px}
+button{padding:8px 16px}
+a{word-break:break-all}
+</style>
 </head>
 <body>
-<h2>CCC Encoder</h2>
-<input id="url" placeholder="https://example.com" style="width:300px;">
+<h2>CCC URL Encoder</h2>
+
+<input id="url" placeholder="https://example.com">
 <button onclick="gen()">生成</button>
+
 <p id="out"></p>
 
 <script>
+class CCC {
+  constructor(){
+    this.enc=["c","C","с","ϲ"];
+    this.dec={"c":"0","C":"1","с":"2","ϲ":"3"};
+    this.ver="cccc";
+  }
+
+  encodeUrl(url){
+    let bytes = new TextEncoder().encode(url);
+    let b4 = Array.from(bytes)
+      .map(n => n.toString(4).padStart(4,"0"))
+      .join("");
+
+    let out="";
+    for(let ch of b4){
+      out += this.enc[parseInt(ch)];
+    }
+    return this.ver + out;
+  }
+}
+
 function gen(){
-  let url = document.getElementById('url').value;
-  fetch('/encode?url='+encodeURIComponent(url))
-    .then(r=>r.text())
-    .then(t=>{
-      let link = location.origin + '/' + t;
-      document.getElementById('out').innerHTML =
-        '<a href="'+link+'" target="_blank">'+link+'</a>';
-    });
+  let input = document.getElementById("url").value.trim();
+  if(!input) return;
+
+  let ccc = new CCC();
+  let encoded = ccc.encodeUrl(input);
+
+  let link = location.origin + "/" + encoded;
+
+  document.getElementById("out").innerHTML =
+    '<a href="'+link+'" target="_blank">'+link+'</a>';
 }
 </script>
 </body>
 </html>
 `;
+
+function safeDecode(path){
+  try{
+    let once = decodeURIComponent(path);
+    try{
+      return decodeURIComponent(once);
+    }catch{
+      return once;
+    }
+  }catch{
+    return path;
+  }
+}
 
 export default {
   async fetch(request) {
@@ -102,58 +133,30 @@ export default {
       const url = new URL(request.url);
       const ccc = new CCC();
 
-      // 🔥 安全 decode（绝不抛异常）
-      let rawPath = url.pathname.slice(1);
-      let path = rawPath;
-
-      try {
-        path = decodeURIComponent(rawPath);
-      } catch (e) {
-        // 忽略错误，用原始值
-      }
+      let path = safeDecode(url.pathname.slice(1));
 
       // ✅ 首页
       if (!path) {
-        return new Response(INDEX_HTML, {
+        return new Response(HTML, {
           headers: { "content-type": "text/html;charset=utf-8" },
         });
       }
 
-      // ✅ 编码接口
-      if (url.pathname.startsWith("/encode")) {
-        let target = url.searchParams.get("url");
-        if (!target) {
-          return new Response("missing url", { status: 400 });
-        }
+      // ✅ 解码跳转
+      let target = ccc.decodeUrl(path);
 
-        let encoded = ccc.encodeUrl(target);
-        if (!encoded) {
-          return new Response("encode failed", { status: 500 });
-        }
-
-        return new Response(encoded);
-      }
-
-      // ✅ 解码
-      let redirectUrl = ccc.decodeUrl(path);
-
-      if (!redirectUrl) {
+      if (!target) {
         return new Response("Invalid CCC URL", { status: 404 });
       }
 
-      // 🔥 防止奇怪协议（安全）
-      if (!/^https?:\/\//i.test(redirectUrl)) {
-        redirectUrl = "https://" + redirectUrl;
+      if (!/^https?:\/\//i.test(target)) {
+        target = "https://" + target;
       }
 
-      return Response.redirect(redirectUrl, 302);
+      return Response.redirect(target, 302);
 
-    } catch (err) {
-      // 🚨 终极兜底（防1101）
-      return new Response(
-        "Worker Error (but handled safely)",
-        { status: 500 }
-      );
+    } catch (e) {
+      return new Response("Internal Error", { status: 500 });
     }
   }
 };
