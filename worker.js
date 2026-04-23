@@ -41,53 +41,80 @@ class CCC {
       utf8arr.push(parseInt(b4str.substring(i, i + 4), 4));
     }
 
-    return this.Utf8ArrayToStr(utf8arr);
+    return new TextDecoder().decode(new Uint8Array(utf8arr));
   }
 
   toUTF8Array(str) {
     return new TextEncoder().encode(str);
   }
-
-  Utf8ArrayToStr(array) {
-    return new TextDecoder().decode(new Uint8Array(array));
-  }
 }
 
-// ⭐⭐⭐ Worker 标准入口（关键改造）
+// ⭐ 内嵌首页（简单版）
+const INDEX_HTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>CCC Encoder</title>
+</head>
+<body>
+  <h2>CCC URL Encoder</h2>
+  <input id="url" placeholder="https://example.com" style="width:300px;">
+  <button onclick="gen()">生成</button>
+  <p id="out"></p>
+
+  <script>
+    function gen() {
+      const url = document.getElementById('url').value;
+      fetch('/encode?url=' + encodeURIComponent(url))
+        .then(r => r.text())
+        .then(t => {
+          const link = location.origin + '/' + t;
+          document.getElementById('out').innerHTML =
+            '<a href="'+link+'" target="_blank">'+link+'</a>';
+        });
+    }
+  </script>
+</body>
+</html>
+`;
+
 export default {
   async fetch(request) {
     const url = new URL(request.url);
-
-    // 🔥 decode URL（必须）
     let path = decodeURIComponent(url.pathname.slice(1));
+
+    const ccc = new CCC();
 
     // ✅ 1. 首页
     if (!path) {
-      return new Response(
-        `<h1>CCC Worker Running ✅</h1>`,
-        { headers: { "content-type": "text/html" } }
-      );
+      return new Response(INDEX_HTML, {
+        headers: { "content-type": "text/html" },
+      });
     }
 
+    // ✅ 2. 编码接口
+    if (url.pathname.startsWith("/encode")) {
+      const target = url.searchParams.get("url");
+      if (!target) return new Response("missing url", { status: 400 });
+
+      return new Response(ccc.encodeUrl(target));
+    }
+
+    // ✅ 3. 解码跳转
     let redirectUrl = null;
-
     try {
-      redirectUrl = new CCC().decodeUrl(path);
-    } catch (e) {
-      console.log("decode error:", e);
-    }
+      redirectUrl = ccc.decodeUrl(path);
+    } catch (e) {}
 
-    // ❌ 解码失败
     if (!redirectUrl) {
       return new Response("Invalid CCC URL", { status: 404 });
     }
 
-    // 🔥 自动补协议
     if (!redirectUrl.startsWith("http")) {
       redirectUrl = "https://" + redirectUrl;
     }
 
-    // ✅ 跳转
     return Response.redirect(redirectUrl, 302);
-  }
+  },
 };
