@@ -172,7 +172,6 @@ body {
 
 .title-c {
   display: inline-block;
-  animation: letterPop 2s ease-in-out infinite;
 }
 
 .title-c:nth-child(1) {
