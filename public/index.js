@@ -1414,13 +1414,13 @@ function generate() {
   try {
     new URL(val);
   } catch {
-    alert("❌ Invalid URL format");
+    alert("😾 这不是一个合法的网址！");
     return;
   }
 
   // 🔥 核心：域名后缀校验
   if (!isValidDomain(val)) {
-    alert("❌ Invalid domain suffix");
+    alert("🙀 找不到这个域名后缀！");
     return;
   }
 
